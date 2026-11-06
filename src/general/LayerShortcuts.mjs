@@ -8,13 +8,13 @@ export default class LayerShortcuts {
 		// #region Register and bind the layer hot-swap Hotkey
 		game.keybindings.register(ARCHITECT.MOD_NAME, 'LayerShortcuts.QuickSwap', {
 			restricted: true,
-			name: 'DF_ARCHITECT.LayerShortcuts.Settings.QuickSwap.Title'.localize(),
-			hint: 'DF_ARCHITECT.LayerShortcuts.Settings.QuickSwap.Info'.localize(),
+			name: game.i18n.localize('DF_ARCHITECT.LayerShortcuts.Settings.QuickSwap.Title'),
+			hint: game.i18n.localize('DF_ARCHITECT.LayerShortcuts.Settings.QuickSwap.Info'),
 			editable: [{ key: 'KeyQ', modifiers: [KeyboardManager.MODIFIER_KEYS.ALT] }],
 			onDown: () => {
 				const layer1 = SETTINGS.get(LayerShortcuts.#PREF_LAYER_SWAP_LAYER1);
 				const layer2 = SETTINGS.get(LayerShortcuts.#PREF_LAYER_SWAP_LAYER2);
-				const layer = ui.controls.activeControl === layer1 ? layer2 : layer1;
+				const layer = ui.controls.control?.name === layer1 ? layer2 : layer1;
 				ui.controls._onClickLayer({ preventDefault: () => { }, currentTarget: { dataset: { control: layer } } });
 				return true;
 			}

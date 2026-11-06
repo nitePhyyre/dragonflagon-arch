@@ -49,8 +49,8 @@ export default class TileConfigExt {
 		imgInput.on('change', () => this.#updateImagePreview(config));
 		this.#updateImagePreview(config);
 		// Add the ratio scale buttons
-		const horTitle = 'Scale the width to the aspect ratio relative to the current height'.localize();
-		const verTitle = 'Scale the height to the aspect ratio relative to the current width'.localize();
+		const horTitle = game.i18n.localize('Scale the width to the aspect ratio relative to the current height');
+		const verTitle = game.i18n.localize('Scale the height to the aspect ratio relative to the current width');
 		const width = html.find('input[name="width"]');
 		const height = html.find('input[name="height"]');
 		width.after($(`<button class="df-arch-scale" data-tooltip="${horTitle}"><i class="fas fa-arrows-alt-h"></i></button>`)
@@ -73,8 +73,8 @@ export default class TileConfigExt {
 	/**@param {TileConfig} config*/
 	static #updateImagePreview(config) {
 		if (config.element.find('file-picker[name="texture.src"]').val() === "") return;
-		const labelDimens = 'DF_ARCHITECT.TileConfigExt.LabelDimens'.localize();
-		const labelAspect = 'DF_ARCHITECT.TileConfigExt.LabelAspect'.localize();
+		const labelDimens = game.i18n.localize('DF_ARCHITECT.TileConfigExt.LabelDimens');
+		const labelAspect = game.i18n.localize('DF_ARCHITECT.TileConfigExt.LabelAspect');
 		/**@type  {HTMLImageElement}*/const imgPreview = config.element.find('#img-preview')[0];
 		/**@type  {HTMLVideoElement}*/const animPreview = config.element.find('#anim-preview')[0];
 		/**@type {HTMLOutputElement}*/const info = config.element.find('#img-data')[0];

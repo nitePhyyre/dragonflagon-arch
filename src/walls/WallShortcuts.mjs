@@ -3,17 +3,19 @@ import libWrapperShared from "../core/libWrapperShared.mjs";
 
 
 export default class WallShortcuts {
-	/**@readonly*/static WALL_TYPES = new Set(['walls', 'terrain', 'invisible', 'ethereal', 'doors', 'secret', 'window']);
+	/**@readonly*/static WALL_TYPES = new Set(['solid', 'terrain', 'invisible', 'ethereal', 'doors', 'secret', 'window']);
 
 	static init() {
+		// v13 turned the wall types from tools into palette presets and renamed the basic wall
+		// from "walls" to "solid". Titles are taken from core so they stay localized.
 		const wallTypes = [
-			{ name: 'walls', title: 'Basic Walls' },
-			{ name: 'terrain', title: 'Terrain Walls' },
-			{ name: 'invisible', title: 'Invisible Walls' },
-			{ name: 'ethereal', title: 'Ethereal Walls' },
-			{ name: 'doors', title: 'Draw Doors' },
-			{ name: 'secret', title: 'Secret Doors' },
-			{ name: 'window', title: 'Window Walls' }
+			{ name: 'solid', title: 'CONTROLS.WallSolid' },
+			{ name: 'terrain', title: 'CONTROLS.WallTerrain' },
+			{ name: 'invisible', title: 'CONTROLS.WallInvisible' },
+			{ name: 'ethereal', title: 'CONTROLS.WallEthereal' },
+			{ name: 'doors', title: 'CONTROLS.WallDoor' },
+			{ name: 'secret', title: 'CONTROLS.WallSecret' },
+			{ name: 'window', title: 'CONTROLS.WallWindow' }
 		];
 		var counter = 0;
 		for (let tool of wallTypes) {
@@ -24,15 +26,15 @@ export default class WallShortcuts {
 				hint: 'DF_ARCHITECT.WallShortcuts.Settings.Description',
 				editable: [{ key: `Digit${++counter}`, modifiers: [KeyboardManager.MODIFIER_KEYS.SHIFT] }],
 				onDown: () => {
-					if (ui.controls.activeControl !== 'walls') return false;
-					ui.controls._onClickTool({ preventDefault: function () { }, currentTarget: { dataset: { tool: currentTool.name } } });
-					if (canvas.walls.preview.children.length > 0 && canvas.walls.preview.children[0] instanceof Wall) {
-						/**@type { { [key: string]: number } }*/
-						const data = canvas.walls._getWallDataFromActiveTool(game.activeTool);
-						for (const key of Object.keys(data)) {
-							canvas.walls.preview.children[0].document.data[key] = data[key];
-						}
-					}
+					if (ui.controls.control?.name !== 'walls') return false;
+					// SceneControls#_onClickTool is gone in v13+, and the preset handler reads the
+					// tool name off the clicked element, so drive core's own delegated handler by
+					// clicking the real button rather than synthesizing an event for it.
+					if (!WallShortcuts.clickTool(currentTool.name)) return false;
+					// Retype a wall that is mid-draw to match the newly chosen preset.
+					const preview = canvas.walls.preview.children[0];
+					const createData = ui.controls.control.tools?.[currentTool.name]?.createData;
+					if ((preview instanceof Wall) && createData) preview.document.updateSource(createData);
 					return true;
 				}
 			});
@@ -45,7 +47,7 @@ export default class WallShortcuts {
 			editable: [{ key: 'F', modifiers: [] }],
 			onDown: () => {
 				if (!(canvas.activeLayer instanceof WallsLayer)) return;
-				$('#controls li[data-tool="snap"]').trigger('click');
+				WallShortcuts.clickTool('snap');
 			}
 		});
 
@@ -54,17 +56,30 @@ export default class WallShortcuts {
 	}
 
 	/**
+	 * Click one of the active control set's tool buttons, as though the user had.
+	 * @param {string} name   Name of the tool, which is also its data-tool attribute.
+	 * @returns {boolean}     Whether the button was found.
+	 */
+	static clickTool(name) {
+		/**@type {HTMLElement|null|undefined}*/
+		const button = ui.controls.element?.querySelector(`button.tool[data-tool="${name}"]`);
+		button?.click();
+		return !!button;
+	}
+
+	/**
 	 * @param {Function} wrapper
 	 * @param {*} event
 	 * @returns {unknown}
 	 */
 	static #patchForceSnap(wrapper, event) {
-		let forceSnap = canvas.walls._forceSnap;
+		// v13 moved force-snap off the walls layer and onto the canvas as Canvas#forceSnapVertices.
+		let forceSnap = canvas.forceSnapVertices;
 		if (!forceSnap) return wrapper(event);
-		if (event.data.originalEvent.shiftKey)
-			canvas.walls._forceSnap = false;
+		// Pointer events are federated from v11 on, so modifier state is read off the event itself.
+		if (event.shiftKey) canvas.forceSnapVertices = false;
 		const result = wrapper(event);
-		canvas.walls._forceSnap = forceSnap;
+		canvas.forceSnapVertices = forceSnap;
 		return result;
 	}
 }

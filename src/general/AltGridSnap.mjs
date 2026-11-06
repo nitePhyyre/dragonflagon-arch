@@ -7,6 +7,12 @@ export default class AltGridSnap {
 	/**@readonly*/static PREF_ENABLED = 'AltGridSnap.Enabled';
 	/**@readonly*/static PREF_TOGGLED = 'AltGridSnap.Toggled';
 	/**@readonly*/static PREF_PLACE_ON_CONTROL_BAR = 'AltGridSnap.PlaceOnControlBar';
+	/**
+	 * DOM id of the toggle button we add to the layer bar. v13 rebuilt the scene controls as an
+	 * ApplicationV2, so the bar is a <menu> of <button> elements rather than <ol#controls><li>.
+	 * @readonly
+	 */
+	static #BUTTON_ID = 'df-arch-altSnap';
 
 	static init() {
 		SETTINGS.register(AltGridSnap.PREF_TOGGLED, {
@@ -16,11 +22,12 @@ export default class AltGridSnap {
 			default: false,
 			onChange: value => {
 				if (SETTINGS.get(AltGridSnap.PREF_PLACE_ON_CONTROL_BAR)) {
-					const button = $('ol#controls>li#df-arch-altSnap');
-					if (value) button.addClass('active');
-					else button.removeClass('active');
+					// Pressed state is carried by aria-pressed in v13+, not by an "active" class.
+					const button = document.getElementById(AltGridSnap.#BUTTON_ID);
+					button?.setAttribute('aria-pressed', value ? 'true' : 'false');
 				} else {
-					ui.controls.control.tools.find(t => t.name === 'altSnap').active = value;
+					const tool = ui.controls.control?.tools?.altSnap;
+					if (tool) tool.active = value;
 					ui.controls.render();
 				}
 			}
@@ -32,7 +39,7 @@ export default class AltGridSnap {
 			hint: 'DF_ARCHITECT.AltGridSnap.Setting.EnabledHint',
 			type: Boolean,
 			default: false,
-			onChange: () => { this.#_patchSquareGrid(); ui.controls.initialize() }
+			onChange: () => { this.#_patchSquareGrid(); ui.controls.render({ reset: true }) }
 		});
 		SETTINGS.register(AltGridSnap.PREF_PLACE_ON_CONTROL_BAR, {
 			scope: 'world',
@@ -41,7 +48,7 @@ export default class AltGridSnap {
 			hint: 'DF_ARCHITECT.AltGridSnap.Setting.PlaceOnControlBarHint',
 			type: Boolean,
 			default: false,
-			onChange: () => { ui.controls.initialize(); ui.controls.render(true) }
+			onChange: () => { ui.controls.render({ reset: true, force: true }) }
 		});
 
 		game.keybindings.register(ARCHITECT.MOD_NAME, 'AltSnapGrid.Toggle', {
@@ -58,46 +65,50 @@ export default class AltGridSnap {
 		if (this.enabled)
 			this.#_patchSquareGrid();
 
-		Hooks.on('getSceneControlButtons', (/**@type {SceneControl[]}*/ controls) => {
+		Hooks.on('getSceneControlButtons', (/**@type {Record<string, SceneControl>}*/ controls) => {
 			if (!this.enabled) return;
 			if (SETTINGS.get(AltGridSnap.PREF_PLACE_ON_CONTROL_BAR)) return;
 			const isGM = game.user.isGM;
 			const enabled = this.toggled;
-			for (let control of controls) {
-				control.tools.splice(0, 0, {
+			// v13: controls and their tools are records keyed by name and sorted by "order", and
+			// the tool callback is onChange(event, active) rather than onClick(active).
+			for (const control of Object.values(controls)) {
+				control.tools ??= {};
+				control.tools.altSnap = {
 					icon: 'df df-alt-snap',
 					name: 'altSnap',
+					order: -2,
 					title: 'DF_ARCHITECT.AltGridSnap.Label',
 					visible: isGM,
 					toggle: true,
 					active: enabled,
-					onClick: toggled => this.toggled = toggled
-				});
+					onChange: (_event, active) => this.toggled = active
+				};
 			}
 		});
 		Hooks.on('renderSceneControls',
 			/**
 			 * @param {SceneControls} _app
-			 * @param {JQuery<HTMLElement>} html
-			 * @param {any} [_data]
+			 * @param {HTMLElement} element  From v13 this is the root element, not jQuery.
 			 */
-			(_app, html, _data) => {
+			(_app, element) => {
 				if (!SETTINGS.get(AltGridSnap.PREF_PLACE_ON_CONTROL_BAR)) return;
-				const button = $(`
-<li class="scene-control toggle" id="df-arch-altSnap" style="line-height:0" title="${'DF_ARCHITECT.AltGridSnap.Label'.localize()}">
-	<i class="df df-alt-snap"></i>
-</li>`);
-				button.on('click', () => {
-					if (button.hasClass('active')) {
-						this.toggled = false;
-						button.removeClass('active');
-					} else {
-						this.toggled = true;
-						button.addClass('active');
-					}
+				const menu = element.querySelector('[data-application-part="layers"] menu');
+				if (!menu || menu.querySelector(`#${AltGridSnap.#BUTTON_ID}`)) return;
+				const label = game.i18n.localize('DF_ARCHITECT.AltGridSnap.Label');
+				const item = document.createElement('li');
+				// Deliberately no data-action: core delegates clicks on [data-action] to its own
+				// control/tool handlers, which would try to activate a layer that does not exist.
+				item.innerHTML = `<button type="button" id="${AltGridSnap.#BUTTON_ID}"`
+					+ ` class="control ui-control layer icon df df-alt-snap" data-tooltip="${label}"`
+					+ ` aria-label="${label}" aria-pressed="${this.toggled}"></button>`;
+				const button = item.firstElementChild;
+				button.addEventListener('click', () => {
+					const active = !this.toggled;
+					this.toggled = active;
+					button.setAttribute('aria-pressed', active ? 'true' : 'false');
 				});
-				if (this.toggled) button.addClass('active');
-				html.find('.main-controls').append(button);
+				menu.append(item);
 			});
 	}
 

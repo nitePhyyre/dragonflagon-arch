@@ -52,8 +52,8 @@ Hooks.once('init', function () {
 	try { CounterUI.init() } catch (error) { console.error(error) }
 
 	SETTINGS.register('General.ShowCounters', {
-		name: 'DF_ARCHITECT.General.ShowCounterName'.localize(),
-		hint: 'DF_ARCHITECT.General.ShowCounterHint'.localize(),
+		name: game.i18n.localize('DF_ARCHITECT.General.ShowCounterName'),
+		hint: game.i18n.localize('DF_ARCHITECT.General.ShowCounterHint'),
 		config: true,
 		scope: 'world',
 		type: Boolean,
@@ -71,13 +71,13 @@ Hooks.once('ready', async function () {
 	if (!game.modules.get('lib-wrapper')?.active) {
 		console.error('Missing libWrapper module dependency');
 		if (game.user.isGM)
-			ui.notifications.error('DF_ARCHITECT.ErrorLibWrapperMissing'.localize());
+			ui.notifications.error(game.i18n.localize('DF_ARCHITECT.ErrorLibWrapperMissing'));
 		return;
 	}
 	if (!game.modules.get('colorsettings')?.active) {
 		console.error('Missing colorsettings module dependency');
 		if (game.user.isGM)
-			ui.notifications.error('DF_ARCHITECT.ErrorColourSettingsMissing'.localize());
+			ui.notifications.error(game.i18n.localize('DF_ARCHITECT.ErrorColourSettingsMissing'));
 		return;
 	}
 

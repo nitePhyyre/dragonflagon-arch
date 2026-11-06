@@ -6,6 +6,12 @@ export default class ShowLayerControls {
 	/**@readonly*/static PREF_LIGHT = 'ShowLayerControls.LightingLayer';
 	/**@readonly*/static PREF_SOUND = 'ShowLayerControls.SoundsLayer';
 	/**@readonly*/static _ready = false;
+	/**
+	 * Key of the toggle tool we add to each layer's control set. v13 changed SceneControl#tools
+	 * from an array to a record, so this doubles as the tool's record key.
+	 * @readonly
+	 */
+	static #TOOL = 'dfArchShowLayer';
 
 	/**@type {boolean}*/
 	static get showWalls() {
@@ -27,7 +33,8 @@ export default class ShowLayerControls {
 	 */
 	static async toggleLayer(layer, setting, toggled) {
 		await SETTINGS.set(setting, toggled);
-		const control = ui.controls.controls.find(x => x.layer == layer);
+		const control = Object.values(ui.controls.controls).find(x => x.layer == layer);
+		if (!control) return;
 		if (toggled)
 			control.icon += ' df-arch-layervisible';
 		else if (control.icon.indexOf(' df-arch-layervisible') > 0)
@@ -40,80 +47,90 @@ export default class ShowLayerControls {
 		SETTINGS.register(this.PREF_LIGHT, { config: false, scope: 'client', type: Boolean, default: false });
 		SETTINGS.register(this.PREF_SOUND, { config: false, scope: 'client', type: Boolean, default: false });
 
-		Hooks.on('getSceneControlButtons', (/**@type {SceneControl[]}*/controls) => {
+		Hooks.on('getSceneControlButtons', (/**@type {Record<string, SceneControl>}*/controls) => {
 			if (!game.user.isGM) return;
 
-			const walls = controls.find(x => x.name === 'walls');
-			const lighting = controls.find(x => x.name === 'lighting');
-			const sounds = controls.find(x => x.name === 'sounds');
+			/**
+			 * @param {string} controlId  Record key of the SceneControl, which is also its name.
+			 * @param {string} setting    Preference backing the toggle.
+			 * @param {string} title      Localization path for the tool's tooltip.
+			 * @param {boolean} shown     Whether the layer is currently kept visible.
+			 */
+			const addToggle = (controlId, setting, title, shown) => {
+				const control = controls[controlId];
+				// A control set is absent entirely if it is unavailable to this user.
+				if (!control) return;
+				if (shown) control.icon += ' df-arch-layervisible';
+				control.tools ??= {};
+				control.tools[ShowLayerControls.#TOOL] = {
+					name: ShowLayerControls.#TOOL,
+					// Tools sort by `order` ascending, so a negative value keeps this one on top
+					// where the old array-based `unshift` put it.
+					order: -1,
+					icon: 'fas fa-eye',
+					title,
+					toggle: true,
+					visible: true,
+					active: SETTINGS.get(setting),
+					// v13 renamed the tool callback from onClick(toggled) to onChange(event, active).
+					onChange: (_event, active) => this.toggleLayer(controlId, setting, active)
+				};
+			};
 
-			if (this.showWalls)
-				walls.icon += ' df-arch-layervisible';
-			walls.tools.unshift({
-				icon: 'fas fa-eye', name: 'flatten', toggle: true,
-				active: SETTINGS.get(this.PREF_WALLS),
-				title: 'DF_ARCHITECT.ShowLayerControls.Walls',
-				onClick: toggled => this.toggleLayer('walls', ShowLayerControls.PREF_WALLS, toggled)
-			});
-			if (this.showLights)
-				lighting.icon += ' df-arch-layervisible';
-			lighting.tools.unshift({
-				icon: 'fas fa-eye', name: 'flatten', toggle: true,
-				active: SETTINGS.get(this.PREF_LIGHT),
-				title: 'DF_ARCHITECT.ShowLayerControls.Lights',
-				onClick: toggled => this.toggleLayer('lighting', ShowLayerControls.PREF_LIGHT, toggled)
-			});
-			if (this.showSounds)
-				sounds.icon += ' df-arch-layervisible';
-			sounds.tools.unshift({
-				icon: 'fas fa-eye', name: 'flatten', toggle: true,
-				active: SETTINGS.get(this.PREF_SOUND),
-				title: 'DF_ARCHITECT.ShowLayerControls.Sounds',
-				onClick: toggled => this.toggleLayer('sounds', ShowLayerControls.PREF_SOUND, toggled)
-			});
+			addToggle('walls', ShowLayerControls.PREF_WALLS, 'DF_ARCHITECT.ShowLayerControls.Walls', this.showWalls);
+			addToggle('lighting', ShowLayerControls.PREF_LIGHT, 'DF_ARCHITECT.ShowLayerControls.Lights', this.showLights);
+			addToggle('sounds', ShowLayerControls.PREF_SOUND, 'DF_ARCHITECT.ShowLayerControls.Sounds', this.showSounds);
 		});
 
-		const redraw = async (/**@type {PlaceableObject}*/x) => {
-			if (x instanceof AmbientSound)
-				x.initializeSoundSource();
-			else if (x instanceof AmbientLight)
-				x.initializeLightSource();
-			else {
-				x.updateSource();
-				x.refresh();
-				return;
-			}
-			x.renderFlags.redraw = true;
-			await x.draw();
-			await x.applyRenderFlags();
-			x.controlIcon.visible = true;
+		Hooks.on('updateWall', () => this.#refreshAffectedLayers());
+		Hooks.on('deleteWall', () => this.#refreshAffectedLayers());
+	}
+
+	/**
+	 * Walls shape light and sound propagation, so a wall change has to re-draw the placeables of
+	 * any layer we are keeping visible while it is inactive.
+	 */
+	static #refreshAffectedLayers() {
+		if (!game.user.isGM) return;
+		const refreshLayer = (/**@type {PlaceablesLayer}*/layer) => {
+			layer._active = true;
+			layer.objects.children.forEach(ShowLayerControls.redraw);
+			layer._active = false;
+		};
+		if (this.showLights) refreshLayer(canvas.lighting);
+		if (this.showSounds) refreshLayer(canvas.sounds);
+	}
+
+	/**
+	 * Re-draw a placeable and leave its on-canvas control widget visible even though its layer is
+	 * not the active one.
+	 * @param {PlaceableObject} placeable
+	 */
+	static async redraw(placeable) {
+		if (placeable instanceof AmbientSound)
+			placeable.initializeSoundSource();
+		else if (placeable instanceof AmbientLight)
+			placeable.initializeLightSource();
+		else {
+			// v13 replaced Wall#updateSource with the edge-based Wall#initializeEdge.
+			placeable.initializeEdge?.();
+			placeable.renderFlags.set({ refresh: true });
+			return;
 		}
+		await placeable.draw();
+		placeable.applyRenderFlags();
+		ShowLayerControls.showWidget(placeable);
+	}
 
-		Hooks.on('updateWall', () => {
-			if (!game.user.isGM) return;
-			const refreshLayer = (layer) => {
-				layer._active = true;
-				layer.objects.children.forEach(redraw);
-				layer._active = false;
-			}
-			if (this.showLights)
-				refreshLayer(canvas.lighting);
-			if (this.showSounds)
-				refreshLayer(canvas.sounds);
-		});
-
-		Hooks.on('deleteWall', () => {
-			if (!game.user.isGM) return;
-			const refreshLayer = layer => {
-				layer._active = true;
-				layer.objects.children.forEach(redraw);
-				layer._active = false;
-			}
-			if (this.showLights)
-				refreshLayer(canvas.lighting);
-			if (this.showSounds)
-				refreshLayer(canvas.sounds);
-		});
+	/**
+	 * Reveal whichever widget a placeable uses to show itself on its own layer. Lights lost their
+	 * ControlIcon in v13 in favour of the AmbientLightShapeControls container (AmbientLight#controls);
+	 * sounds still use a ControlIcon.
+	 * @param {PlaceableObject} placeable
+	 */
+	static showWidget(placeable) {
+		if (placeable.controls) placeable.controls.visible = true;
+		if (placeable.controlIcon) placeable.controlIcon.visible = true;
 	}
 
 	static ready() {
@@ -160,10 +177,9 @@ export default class ShowLayerControls {
 			return this;
 
 		/**@type {PlaceableObject[]}*/(this.objects.children).forEach(async x => {
-				x.renderFlags.redraw = true;
 				await x.draw();
-				await x.applyRenderFlags();
-				x.controlIcon.visible = true;
+				x.applyRenderFlags();
+				ShowLayerControls.showWidget(x);
 			});
 		return this;
 	}

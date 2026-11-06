@@ -26,7 +26,7 @@ export default class CounterUI extends Application {
 			 * @param {Function} wrapped
 			 */
 			function (wrapped) {
-				Hooks.callAll('collapseSidebarPre', this, !this._collapsed);
+				Hooks.callAll('collapseSidebarPre', this, !this.expanded);
 				wrapped();
 			}, 'WRAPPER');
 		libWrapper.register(ARCHITECT.MOD_NAME, 'Sidebar.prototype.collapse',
@@ -35,7 +35,7 @@ export default class CounterUI extends Application {
 			 * @param {Function} wrapped
 			 */
 			function (wrapped) {
-				Hooks.callAll('collapseSidebarPre', this, !this._collapsed);
+				Hooks.callAll('collapseSidebarPre', this, !this.expanded);
 				wrapped();
 			}, 'WRAPPER');
 	}
@@ -104,7 +104,8 @@ export default class CounterUI extends Application {
 	async _render(force = false, options = {}) {
 		Hooks.on('collapseSidebarPre', this.#_handleSidebarCollapse.bind(this));
 		await super._render(force, options);
-		if (ui.sidebar._collapsed) {
+		// v13 replaced Sidebar#_collapsed with the Sidebar#expanded getter.
+		if (!ui.sidebar.expanded) {
 			this.element.css('right', '35px');
 		}
 

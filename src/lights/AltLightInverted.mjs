@@ -35,7 +35,7 @@ export default class AltLightInverted {
 	 * @param {*} _data
 	 */
 	static #_renderLightConfig(_app, html, _data) {
-		const button = $(`<button type="button" style="flex:0;padding-left:8.5px" name="invert-radius" title="${'DF_ARCHITECT.AltLightInverted.InvertLuminosityButton'.localize()}"><i class="fas fa-adjust"></i></button>`);
+		const button = $(`<button type="button" style="flex:0;padding-left:8.5px" name="invert-radius" title="${game.i18n.localize('DF_ARCHITECT.AltLightInverted.InvertLuminosityButton')}"><i class="fas fa-adjust"></i></button>`);
 		$(html).find('range-picker[name="config.luminosity"]').parent().before(button);
 		button.on('click', event => {
 			event.preventDefault();

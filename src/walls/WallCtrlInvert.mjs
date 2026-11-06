@@ -33,23 +33,27 @@ export default class WallCtrlInvert {
 			editable: [{ key: 'KeyC', modifiers: [KeyboardManager.MODIFIER_KEYS.ALT] }],
 			onDown: (async () => {
 				await SETTINGS.set(WallCtrlInvert.PREF_ENABLED, !this.enabled)
-				ui.controls.initialize();
+				ui.controls.render({ reset: true });
 				return true;
 			})
 		});
 
-		Hooks.on('getSceneControlButtons', (/**@type {SceneControl[]}*/controls) => {
+		Hooks.on('getSceneControlButtons', (/**@type {Record<string, SceneControl>}*/controls) => {
 			const isGM = game.user.isGM;
-			const wallsControls = controls.find(x => x.name === 'walls');
-			wallsControls.tools.splice(wallsControls.tools.findIndex(x => x.name === 'snap'), 0, {
+			const wallsControls = controls.walls;
+			if (!wallsControls) return;
+			wallsControls.tools ??= {};
+			// Ordered to sit just before core's snap toggle (10), where it used to be spliced.
+			wallsControls.tools.ctrlInvert = {
 				icon: 'fas fa-link',
 				name: 'ctrlInvert',
+				order: 9.4,
 				title: 'DF_ARCHITECT.WallCtrlInvert.Title',
 				visible: isGM,
 				toggle: true,
 				active: this.enabled,
-				onClick: (toggled) => { this.enabled = toggled }
-			});
+				onChange: (_event, active) => { this.enabled = active }
+			};
 		});
 	}
 

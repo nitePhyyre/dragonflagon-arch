@@ -16,16 +16,20 @@ export default class WallGapFiller {
 	static get #threshold() { return SETTINGS.get(this.#PREF_GAP_THRESHOLD); }
 
 	static init() {
-		Hooks.on('getSceneControlButtons', (/**@type {SceneControl[]}*/ controls) => {
-			const wallsControls = controls.find(x => x.name === 'walls');
-			wallsControls.tools.splice(wallsControls.tools.findIndex(x => x.name === 'join') + 1, 0, {
+		Hooks.on('getSceneControlButtons', (/**@type {Record<string, SceneControl>}*/ controls) => {
+			const wallsControls = controls.walls;
+			if (!wallsControls) return;
+			wallsControls.tools ??= {};
+			// Ordered to sit directly after WallJoinSplit's join tool (9.2).
+			wallsControls.tools['wall-gaps'] = {
 				icon: 'fas fa-vector-square',
 				name: 'wall-gaps',
+				order: 9.3,
 				title: 'DF_ARCHITECT.WallGapFiller.ToolButtonLabel',
 				button: true,
 				visible: game.user.isGM,
-				onClick: this.#fillGaps.bind(this)
-			});
+				onChange: this.#fillGaps.bind(this)
+			};
 		});
 	}
 
@@ -109,7 +113,7 @@ export default class WallGapFiller {
 
 	static async #fillGaps() {
 		// Disable interaction with canvas
-		const overlayElement = $(`<div id="dfarch-temp-overlay" style="background:#444c"><h1>${'DF_ARCHITECT.WallGapFiller.DetectGapsLabel'.localize()}</h1><div class="dfarch-dual-ring"></div></div>`);
+		const overlayElement = $(`<div id="dfarch-temp-overlay" style="background:#444c"><h1>${game.i18n.localize('DF_ARCHITECT.WallGapFiller.DetectGapsLabel')}</h1><div class="dfarch-dual-ring"></div></div>`);
 		overlayElement.appendTo(document.body);
 		// Detect all the wall gaps, this can take some noticeable time if there are 100+ walls
 		const wallGaps = await this.#findWallGaps();
@@ -119,8 +123,8 @@ export default class WallGapFiller {
 		if (wallGaps.length === 0) {
 			Dialog.prompt({
 				callback: () => { },
-				content: `<p>${'DF_ARCHITECT.WallGapFiller.NoGaps'.localize()}</p>`,
-				title: 'DF_ARCHITECT.WallGapFiller.DialogTitle'.localize()
+				content: `<p>${game.i18n.localize('DF_ARCHITECT.WallGapFiller.NoGaps')}</p>`,
+				title: game.i18n.localize('DF_ARCHITECT.WallGapFiller.DialogTitle')
 			});
 			return;
 		}
@@ -137,8 +141,8 @@ export default class WallGapFiller {
 
 		// Ask the user if they would like to close the wall gaps
 		const decision = await Dialog.confirm({
-			title: 'DF_ARCHITECT.WallGapFiller.DialogTitle'.localize(),
-			content: `<p>${'DF_ARCHITECT.WallGapFiller.GapsDetected'.localize().replace('{count}', wallGaps.length.toString())}</p>`,
+			title: game.i18n.localize('DF_ARCHITECT.WallGapFiller.DialogTitle'),
+			content: `<p>${game.i18n.localize('DF_ARCHITECT.WallGapFiller.GapsDetected').replace('{count}', wallGaps.length.toString())}</p>`,
 			defaultYes: true
 		});
 
@@ -147,7 +151,7 @@ export default class WallGapFiller {
 			let d2 = 0;
 			// Display Progress Bar
 			SceneNavigation.displayProgressBar({
-				label: 'DF_ARCHITECT.WallGapFiller.ProgressLabel'.localize().replace('{0}', '0').replace('{1}', wallGaps.length.toString()),
+				label: game.i18n.localize('DF_ARCHITECT.WallGapFiller.ProgressLabel').replace('{0}', '0').replace('{1}', wallGaps.length.toString()),
 				pct: 0
 			});
 			let count = 0;
@@ -169,7 +173,7 @@ export default class WallGapFiller {
 					await gap.wallB.document.update({ c: [gap.wallB.document.c[0], gap.wallB.document.c[1], gap.midpoint.x, gap.midpoint.y] });
 				// Update progress bar
 				SceneNavigation.displayProgressBar({
-					label: 'DF_ARCHITECT.WallGapFiller.ProgressLabel'.localize().replace('{0}', (++count).toString()).replace('{1}', wallGaps.length.toString()),
+					label: game.i18n.localize('DF_ARCHITECT.WallGapFiller.ProgressLabel').replace('{0}', (++count).toString()).replace('{1}', wallGaps.length.toString()),
 					pct: (count / wallGaps.length) * 100
 				});
 			}

@@ -6,24 +6,32 @@ export default class WallJoinSplit {
 	static get enabled() { return SETTINGS.get(WallJoinSplit.PREF_ENABLED) }
 	static set enabled(value) { SETTINGS.set(WallJoinSplit.PREF_ENABLED, value) }
 	static init() {
-		Hooks.on('getSceneControlButtons', (/**@type {SceneControl[]}*/ controls) => {
+		Hooks.on('getSceneControlButtons', (/**@type {Record<string, SceneControl>}*/ controls) => {
 			const isGM = game.user.isGM;
-			const wallsControls = controls.find(x => x.name === 'walls');
-			wallsControls.tools.splice(wallsControls.tools.findIndex(x => x.name === 'clone') + 1, 0, {
+			const wallsControls = controls.walls;
+			if (!wallsControls) return;
+			wallsControls.tools ??= {};
+			// Tools are a record sorted by "order" in v13+, so instead of splicing relative to a
+			// neighbouring tool the DF tools take fractional slots between core's last wall preset
+			// (window, 9) and its snap toggle (10).
+			wallsControls.tools.split = {
 				icon: 'df df-alt-split',
 				name: 'split',
+				order: 9.1,
 				title: 'DF_ARCHITECT.WallJoinSplit.Split_Label',
 				button: true,
 				visible: isGM,
-				onClick: this._splitWalls.bind(this)
-			}, {
+				onChange: this._splitWalls.bind(this)
+			};
+			wallsControls.tools.join = {
 				icon: 'df df-alt-join',
 				name: 'join',
+				order: 9.2,
 				title: 'DF_ARCHITECT.WallJoinSplit.Join_Label',
 				button: true,
 				visible: isGM,
-				onClick: this._joinWalls.bind(this)
-			});
+				onChange: this._joinWalls.bind(this)
+			};
 		});
 	}
 
